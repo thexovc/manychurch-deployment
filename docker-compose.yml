@@ -1,0 +1,171 @@
+version: "3.8"
+
+services:
+  # Edge Proxy (Nginx)
+  proxy:
+    image: ${PROXY_IMAGE}
+    ports:
+      - "80:80"
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  # Database (PostgreSQL)
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: manychurch
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # Cache (Redis)
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # Broker (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: manychurch_admin
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # Gateway API Service
+  gateway-service:
+    image: ${GATEWAY_IMAGE}
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - AUTH_SERVICE_ADDR=auth-service:50051
+      - CHURCH_SERVICE_ADDR=church-service:50051
+      - MEMBER_SERVICE_ADDR=member-service:50051
+      - NOTIFICATION_SERVICE_ADDR=notification-service:50051
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # Auth Microservice
+  auth-service:
+    image: ${AUTH_IMAGE}
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=manychurch
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # Church Microservice
+  church-service:
+    image: ${CHURCH_IMAGE}
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=manychurch
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # Member Microservice
+  member-service:
+    image: ${MEMBER_IMAGE}
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=manychurch
+      - DB_USER=postgres
+      - DB_PASSWORD=${DB_PASSWORD}
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+  # Notification Microservice
+  notification-service:
+    image: ${NOTIFICATION_IMAGE}
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT}
+      - RABBITMQ_URL=amqp://manychurch_admin:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+    networks:
+      - manychurch_net
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+
+networks:
+  manychurch_net:
+    driver: overlay
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

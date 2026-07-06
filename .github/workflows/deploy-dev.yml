@@ -1,0 +1,62 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Dev ECS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build and push custom Nginx Proxy to ECR
+      - name: Build & Push Proxy Image
+        run: |
+          REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          PROXY_IMG="$REGISTRY/manychurch-proxy:dev"
+          docker build -t "$PROXY_IMG" ./nginx
+          docker push "$PROXY_IMG"
+          echo "PROXY_IMAGE_URI=$PROXY_IMG" >> $GITHUB_ENV
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.8.0"
+
+      # Execute Deployment using native Terraform and AWS ECS APIs
+      - name: Terraform Apply (ECS Deploy)
+        working-directory: terraform/environments/dev
+        run: |
+          terraform init
+          terraform apply -auto-approve -input=false \
+            -var="ssh_public_key=${{ secrets.DEV_SSH_PUBLIC_KEY }}" \
+            -var="secrets_arn=${{ secrets.DEV_SECRETS_ARN }}" \
+            -var="nginx_image=${{ env.PROXY_IMAGE_URI }}" \
+            -var="gateway_image=${{ steps.login-ecr.outputs.registry }}/manychurch-gateway:dev" \
+            -var="auth_image=${{ steps.login-ecr.outputs.registry }}/manychurch-auth:dev" \
+            -var="church_image=${{ steps.login-ecr.outputs.registry }}/manychurch-church:dev" \
+            -var="member_image=${{ steps.login-ecr.outputs.registry }}/manychurch-member:dev" \
+            -var="course_image=${{ steps.login-ecr.outputs.registry }}/manychurch-course:dev" \
+            -var="giving_image=${{ steps.login-ecr.outputs.registry }}/manychurch-giving:dev" \
+            -var="wallet_image=${{ steps.login-ecr.outputs.registry }}/manychurch-wallet:dev" \
+            -var="notification_image=${{ steps.login-ecr.outputs.registry }}/manychurch-notification:dev" \
+            -var="support_image=${{ steps.login-ecr.outputs.registry }}/manychurch-support:dev" \
+            -var="admin_image=${{ steps.login-ecr.outputs.registry }}/manychurch-admin:dev"
