@@ -252,11 +252,11 @@ resource "aws_cloudwatch_log_group" "app_logs" {
   retention_in_days = 7
 }
 
-# --- Consolidated ECS Task Definition (All 15 Containers) ---
+# --- Consolidated ECS Task Definition (Core Services) ---
 # Mode is set to "host" so all containers share local interfaces and communicate via localhost.
 
-resource "aws_ecs_task_definition" "app" {
-  family                   = "manychurch-${var.environment}-app"
+resource "aws_ecs_task_definition" "core" {
+  family                   = "manychurch-${var.environment}-core"
   network_mode             = "host"
   requires_compatibilities = ["EC2"]
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
@@ -499,8 +499,30 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-stream-prefix" = "notification"
         }
       }
-    },
+    }
+  ])
 
+  # Persistent Volume configurations
+  volume {
+    name      = "postgres_data"
+    host_path = "/var/lib/manychurch/postgres_data"
+  }
+
+  volume {
+    name      = "rabbitmq_data"
+    host_path = "/var/lib/manychurch/rabbitmq_data"
+  }
+}
+
+# --- Consolidated ECS Task Definition (Auxiliary Services) ---
+resource "aws_ecs_task_definition" "aux" {
+  family                   = "manychurch-${var.environment}-aux"
+  network_mode             = "host"
+  requires_compatibilities = ["EC2"]
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
+
+  container_definitions = jsonencode([
     # 9. Course Service
     {
       name      = "course"
@@ -622,25 +644,22 @@ resource "aws_ecs_task_definition" "app" {
       }
     }
   ])
-
-  # Persistent Volume configurations
-  volume {
-    name      = "postgres_data"
-    host_path = "/var/lib/manychurch/postgres_data"
-  }
-
-  volume {
-    name      = "rabbitmq_data"
-    host_path = "/var/lib/manychurch/rabbitmq_data"
-  }
 }
 
-# --- ECS Service Definition ---
+# --- ECS Service Definitions ---
 
-resource "aws_ecs_service" "app" {
-  name            = "manychurch-app"
+resource "aws_ecs_service" "core" {
+  name            = "manychurch-core"
   cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
+  task_definition = aws_ecs_task_definition.core.arn
+  desired_count   = 1
+  launch_type     = "EC2"
+}
+
+resource "aws_ecs_service" "aux" {
+  name            = "manychurch-aux"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.aux.arn
   desired_count   = 1
   launch_type     = "EC2"
 }
