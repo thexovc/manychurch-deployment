@@ -22,7 +22,7 @@ provider "aws" {
 module "dev_ecs" {
   source             = "../../modules/ecs_ec2"
   environment        = "dev"
-  instance_type      = "t3.small" # Fits 15 containers using swap
+  instance_type      = "t3.medium" # Upgraded to support increased container memory requirements
   ssh_public_key     = var.ssh_public_key
   secrets_arn        = var.secrets_arn
   vpc_cidr           = "10.0.0.0/16"

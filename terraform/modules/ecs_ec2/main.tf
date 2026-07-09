@@ -527,8 +527,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "course"
       image     = var.course_image
-      cpu       = 50
-      memory    = 48
+      cpu       = 100
+      memory    = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -544,8 +544,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "giving"
       image     = var.giving_image
-      cpu       = 50
-      memory    = 48
+      cpu       = 100
+      memory    = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -561,8 +561,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "wallet"
       image     = var.wallet_image
-      cpu       = 50
-      memory    = 48
+      cpu       = 100
+      memory    = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -578,8 +578,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "support"
       image     = var.support_image
-      cpu       = 50
-      memory    = 48
+      cpu       = 100
+      memory    = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -595,8 +595,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "admin"
       image     = var.admin_image
-      cpu       = 50
-      memory    = 48
+      cpu       = 100
+      memory    = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -612,8 +612,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "prometheus"
       image     = var.prometheus_image
-      cpu       = 100
-      memory    = 96
+      cpu       = 200
+      memory    = 512
       essential = true
       portMappings = [{ containerPort = 9090 }]
       logConfiguration = {
@@ -630,8 +630,8 @@ resource "aws_ecs_task_definition" "aux" {
     {
       name      = "grafana"
       image     = var.grafana_image
-      cpu       = 100
-      memory    = 96
+      cpu       = 200
+      memory    = 512
       essential = true
       portMappings = [{ containerPort = 3000 }]
       logConfiguration = {
