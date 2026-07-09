@@ -268,7 +268,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "nginx"
       image     = var.nginx_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [
         {
@@ -293,7 +293,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "gateway"
       image     = var.gateway_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [
         {
@@ -322,7 +322,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "postgres"
       image     = var.postgres_image
       cpu       = 200
-      memory    = 256
+      memoryReservation = 256
       essential = true
       portMappings = [
         {
@@ -360,7 +360,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "rabbitmq"
       image     = var.rabbitmq_image
       cpu       = 150
-      memory    = 192
+      memoryReservation = 192
       essential = true
       portMappings = [
         {
@@ -400,7 +400,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "auth"
       image     = var.auth_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [{ containerPort = 50051 }]
       environment = [
@@ -428,7 +428,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "church"
       image     = var.church_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [{ containerPort = 50052 }]
       environment = [
@@ -455,7 +455,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "member"
       image     = var.member_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [{ containerPort = 50053 }]
       environment = [
@@ -482,7 +482,7 @@ resource "aws_ecs_task_definition" "core" {
       name      = "notification"
       image     = var.notification_image
       cpu       = 100
-      memory    = 64
+      memoryReservation = 64
       essential = true
       portMappings = [{ containerPort = 50054 }]
       environment = [
@@ -528,7 +528,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "course"
       image     = var.course_image
       cpu       = 100
-      memory    = 256
+      memoryReservation = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -545,7 +545,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "giving"
       image     = var.giving_image
       cpu       = 100
-      memory    = 256
+      memoryReservation = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -562,7 +562,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "wallet"
       image     = var.wallet_image
       cpu       = 100
-      memory    = 256
+      memoryReservation = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -579,7 +579,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "support"
       image     = var.support_image
       cpu       = 100
-      memory    = 256
+      memoryReservation = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -596,7 +596,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "admin"
       image     = var.admin_image
       cpu       = 100
-      memory    = 256
+      memoryReservation = 256
       essential = true
       logConfiguration = {
         logDriver = "awslogs"
@@ -613,7 +613,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "prometheus"
       image     = var.prometheus_image
       cpu       = 200
-      memory    = 512
+      memoryReservation = 512
       essential = true
       portMappings = [{ containerPort = 9090 }]
       logConfiguration = {
@@ -631,7 +631,7 @@ resource "aws_ecs_task_definition" "aux" {
       name      = "grafana"
       image     = var.grafana_image
       cpu       = 200
-      memory    = 512
+      memoryReservation = 512
       essential = true
       portMappings = [{ containerPort = 3000 }]
       logConfiguration = {
