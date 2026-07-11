@@ -256,13 +256,22 @@ resource "aws_cloudwatch_log_group" "app_logs" {
 }
 
 # --- Route 53 Private Hosted Zone & Records for DNS-based Service Discovery ---
-data "aws_route53_zone" "private" {
-  name         = "manychurch.local"
-  private_zone = true
+# The zone is created as a managed resource. The previous Cloud Map namespace
+# (which had auto-created a conflicting zone) has been destroyed, so this is safe.
+resource "aws_route53_zone" "private" {
+  name = "manychurch.local"
+  vpc {
+    vpc_id = aws_vpc.main.id
+  }
+
+  tags = {
+    Name        = "manychurch-${var.environment}-private-zone"
+    Environment = var.environment
+  }
 }
 
 resource "aws_route53_record" "postgres" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "postgres.manychurch.local"
   type    = "A"
   ttl     = 10
@@ -270,7 +279,7 @@ resource "aws_route53_record" "postgres" {
 }
 
 resource "aws_route53_record" "rabbitmq" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "rabbitmq.manychurch.local"
   type    = "A"
   ttl     = 10
@@ -278,7 +287,7 @@ resource "aws_route53_record" "rabbitmq" {
 }
 
 resource "aws_route53_record" "auth" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "auth.manychurch.local"
   type    = "A"
   ttl     = 10
@@ -286,7 +295,7 @@ resource "aws_route53_record" "auth" {
 }
 
 resource "aws_route53_record" "church" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "church.manychurch.local"
   type    = "A"
   ttl     = 10
@@ -294,7 +303,7 @@ resource "aws_route53_record" "church" {
 }
 
 resource "aws_route53_record" "member" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "member.manychurch.local"
   type    = "A"
   ttl     = 10
@@ -302,7 +311,7 @@ resource "aws_route53_record" "member" {
 }
 
 resource "aws_route53_record" "notification" {
-  zone_id = data.aws_route53_zone.private.zone_id
+  zone_id = aws_route53_zone.private.zone_id
   name    = "notification.manychurch.local"
   type    = "A"
   ttl     = 10
