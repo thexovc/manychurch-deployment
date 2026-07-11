@@ -22,7 +22,7 @@ provider "aws" {
 module "prod_ecs" {
   source             = "../../modules/ecs_ec2"
   environment        = "prod"
-  instance_type      = "t3.medium" # Upgraded to medium (4GB RAM) for production
+  instance_type      = "t3.micro" # Downgraded to micro for cost optimization with 8 instances
   ssh_public_key     = var.ssh_public_key
   secrets_arn        = var.secrets_arn
   vpc_cidr           = "10.1.0.0/16"

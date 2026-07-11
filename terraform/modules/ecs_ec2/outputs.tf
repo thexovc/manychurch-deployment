@@ -5,17 +5,17 @@ output "ecs_cluster_name" {
 
 output "ecs_service_core_name" {
   description = "The name of the Core ECS Service"
-  value       = aws_ecs_service.core.name
+  value       = aws_ecs_service.proxy_gateway.name
 }
 
 output "ecs_service_aux_name" {
   description = "The name of the Auxiliary ECS Service"
-  value       = aws_ecs_service.aux.name
+  value       = aws_ecs_service.course_giving.name
 }
 
 output "ecs_service_name" {
   description = "The name of the Core ECS Service (legacy)"
-  value       = aws_ecs_service.core.name
+  value       = aws_ecs_service.proxy_gateway.name
 }
 
 output "public_ip" {

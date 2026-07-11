@@ -10,6 +10,7 @@ fi
 
 # Configure ECS Agent to register this instance to our ManyChurch cluster
 echo "ECS_CLUSTER=${cluster_name}" >> /etc/ecs/ecs.config
+echo "ECS_INSTANCE_ATTRIBUTES={\"role\":\"${instance_role}\"}" >> /etc/ecs/ecs.config
 
 # Start ECS Agent
 systemctl enable --now ecs
