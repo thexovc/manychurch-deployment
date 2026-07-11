@@ -786,7 +786,9 @@ resource "aws_ecs_service" "postgres" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.postgres.arn
+    registry_arn   = aws_service_discovery_service.postgres.arn
+    container_name = "postgres"
+    container_port = 5432
   }
 }
 
@@ -798,7 +800,9 @@ resource "aws_ecs_service" "rabbitmq" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.rabbitmq.arn
+    registry_arn   = aws_service_discovery_service.rabbitmq.arn
+    container_name = "rabbitmq"
+    container_port = 5672
   }
 }
 
@@ -810,7 +814,9 @@ resource "aws_ecs_service" "auth" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.auth.arn
+    registry_arn   = aws_service_discovery_service.auth.arn
+    container_name = "auth"
+    container_port = 50051
   }
 }
 
@@ -822,7 +828,9 @@ resource "aws_ecs_service" "church" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.church.arn
+    registry_arn   = aws_service_discovery_service.church.arn
+    container_name = "church"
+    container_port = 50052
   }
 }
 
@@ -834,7 +842,9 @@ resource "aws_ecs_service" "member" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.member.arn
+    registry_arn   = aws_service_discovery_service.member.arn
+    container_name = "member"
+    container_port = 50053
   }
 }
 
@@ -846,7 +856,9 @@ resource "aws_ecs_service" "notification" {
   launch_type     = "EC2"
 
   service_registries {
-    registry_arn = aws_service_discovery_service.notification.arn
+    registry_arn   = aws_service_discovery_service.notification.arn
+    container_name = "notification"
+    container_port = 50054
   }
 }
 
