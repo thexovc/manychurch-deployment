@@ -230,6 +230,7 @@ resource "aws_instance" "ecs_host" {
   user_data = templatefile("${path.module}/templates/user_data.sh", {
     cluster_name  = aws_ecs_cluster.main.name
     instance_role = count.index == 0 ? "proxy" : "worker"
+    host_index    = count.index
   })
 
   tags = {
@@ -254,95 +255,60 @@ resource "aws_cloudwatch_log_group" "app_logs" {
   retention_in_days = 7
 }
 
-# --- Service Discovery (Cloud Map) ---
-resource "aws_service_discovery_private_dns_namespace" "main" {
-  name        = "manychurch.local"
-  description = "manychurch private dns namespace"
-  vpc         = aws_vpc.main.id
-}
-
-resource "aws_service_discovery_service" "postgres" {
-  name = "postgres"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
+# --- Route 53 Private Hosted Zone & Records for DNS-based Service Discovery ---
+resource "aws_route53_zone" "private" {
+  name = "manychurch.local"
+  vpc {
+    vpc_id = aws_vpc.main.id
   }
 }
 
-resource "aws_service_discovery_service" "rabbitmq" {
-  name = "rabbitmq"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
+resource "aws_route53_record" "postgres" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "postgres.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[1].private_ip]
 }
 
-resource "aws_service_discovery_service" "auth" {
-  name = "auth"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
+resource "aws_route53_record" "rabbitmq" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "rabbitmq.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[2].private_ip]
 }
 
-resource "aws_service_discovery_service" "church" {
-  name = "church"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
+resource "aws_route53_record" "auth" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "auth.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[3].private_ip]
 }
 
-resource "aws_service_discovery_service" "member" {
-  name = "member"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
+resource "aws_route53_record" "church" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "church.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[3].private_ip]
 }
 
-resource "aws_service_discovery_service" "notification" {
-  name = "notification"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
+resource "aws_route53_record" "member" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "member.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[3].private_ip]
+}
+
+resource "aws_route53_record" "notification" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "notification.manychurch.local"
+  type    = "A"
+  ttl     = 10
+  records = [aws_instance.ecs_host[4].private_ip]
 }
 
 # --- 1. Proxy & Gateway Service Task Definition ---
@@ -785,10 +751,10 @@ resource "aws_ecs_service" "postgres" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.postgres.arn
-    container_name = "postgres"
-    container_port = 5432
+  # Pin postgres to run on the EC2 instance ecs_host[1]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 1"
   }
 }
 
@@ -799,10 +765,10 @@ resource "aws_ecs_service" "rabbitmq" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.rabbitmq.arn
-    container_name = "rabbitmq"
-    container_port = 5672
+  # Pin rabbitmq_notification to run on the EC2 instance ecs_host[2]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 2"
   }
 }
 
@@ -813,10 +779,10 @@ resource "aws_ecs_service" "auth" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.auth.arn
-    container_name = "auth"
-    container_port = 50051
+  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 3"
   }
 }
 
@@ -827,10 +793,10 @@ resource "aws_ecs_service" "church" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.church.arn
-    container_name = "church"
-    container_port = 50052
+  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 3"
   }
 }
 
@@ -841,10 +807,10 @@ resource "aws_ecs_service" "member" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.member.arn
-    container_name = "member"
-    container_port = 50053
+  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 3"
   }
 }
 
@@ -855,10 +821,11 @@ resource "aws_ecs_service" "notification" {
   desired_count   = 1
   launch_type     = "EC2"
 
-  service_registries {
-    registry_arn   = aws_service_discovery_service.notification.arn
-    container_name = "notification"
-    container_port = 50054
+  # Pin rabbitmq_notification to run on the EC2 instance ecs_host[4]
+  # (Note: we run rabbitmq on host 2, and notification service replica on host 4)
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 4"
   }
 }
 
@@ -868,6 +835,12 @@ resource "aws_ecs_service" "course_giving" {
   task_definition = aws_ecs_task_definition.course_giving.arn
   desired_count   = 1
   launch_type     = "EC2"
+
+  # Pin course_giving to run on the EC2 instance ecs_host[5]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 5"
+  }
 }
 
 resource "aws_ecs_service" "wallet_support" {
@@ -876,6 +849,12 @@ resource "aws_ecs_service" "wallet_support" {
   task_definition = aws_ecs_task_definition.wallet_support.arn
   desired_count   = 1
   launch_type     = "EC2"
+
+  # Pin wallet_support to run on the EC2 instance ecs_host[6]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 6"
+  }
 }
 
 resource "aws_ecs_service" "admin_prometheus" {
@@ -884,6 +863,12 @@ resource "aws_ecs_service" "admin_prometheus" {
   task_definition = aws_ecs_task_definition.admin_prometheus.arn
   desired_count   = 1
   launch_type     = "EC2"
+
+  # Pin admin_prometheus to run on the EC2 instance ecs_host[7]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 7"
+  }
 }
 
 resource "aws_ecs_service" "grafana" {
@@ -892,4 +877,10 @@ resource "aws_ecs_service" "grafana" {
   task_definition = aws_ecs_task_definition.grafana.arn
   desired_count   = 1
   launch_type     = "EC2"
+
+  # Pin grafana to run on the EC2 instance ecs_host[7]
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 7"
+  }
 }
