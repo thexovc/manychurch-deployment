@@ -252,9 +252,9 @@ resource "aws_launch_template" "ecs_host" {
 resource "aws_autoscaling_group" "ecs_asg" {
   name                  = "manychurch-${var.environment}-ecs-asg"
   vpc_zone_identifier   = [aws_subnet.public.id]
-  min_size              = 4
-  max_size              = 4
-  desired_capacity      = 4
+  min_size              = 3
+  max_size              = 3
+  desired_capacity      = 3
   protect_from_scale_in = false
 
   launch_template {
@@ -327,21 +327,6 @@ resource "aws_service_discovery_service" "postgres" {
   }
 }
 
-resource "aws_service_discovery_service" "rabbitmq" {
-  name = "rabbitmq"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "SRV"
-    }
-    routing_policy = "MULTIVALUE"
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
-}
-
 resource "aws_service_discovery_service" "auth" {
   name = "auth"
   dns_config {
@@ -374,21 +359,6 @@ resource "aws_service_discovery_service" "church" {
 
 resource "aws_service_discovery_service" "member" {
   name = "member"
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records {
-      ttl  = 10
-      type = "SRV"
-    }
-    routing_policy = "MULTIVALUE"
-  }
-  health_check_custom_config {
-    failure_threshold = 1
-  }
-}
-
-resource "aws_service_discovery_service" "notification" {
-  name = "notification"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
@@ -444,7 +414,6 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
         { name = "AUTH_SERVICE_ADDR", value = "auth.manychurch.local:50051" },
         { name = "CHURCH_SERVICE_ADDR", value = "church.manychurch.local:50052" },
         { name = "MEMBER_SERVICE_ADDR", value = "member.manychurch.local:50053" },
-        { name = "NOTIFICATION_SERVICE_ADDR", value = "notification.manychurch.local:50054" }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -503,76 +472,6 @@ resource "aws_ecs_task_definition" "postgres" {
   volume {
     name      = "postgres_data"
     host_path = "/var/lib/manychurch/postgres_data"
-  }
-}
-
-# --- 3. RabbitMQ & Notification Service Task Definition ---
-resource "aws_ecs_task_definition" "rabbitmq_notification" {
-  family                   = "manychurch-${var.environment}-rabbitmq-notification"
-  network_mode             = "host"
-  requires_compatibilities = ["EC2"]
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name              = "rabbitmq"
-      image             = var.rabbitmq_image
-      cpu               = 150
-      memoryReservation = 192
-      essential         = true
-      portMappings = [
-        { containerPort = 5672 },
-        { containerPort = 15672 }
-      ]
-      environment = [
-        { name = "RABBITMQ_DEFAULT_USER", value = "manychurch_admin" }
-      ]
-      secrets = [
-        { name = "RABBITMQ_DEFAULT_PASS", valueFrom = "${var.secrets_arn}:rabbitmq_password::" }
-      ]
-      mountPoints = [
-        {
-          containerPath = "/var/lib/rabbitmq"
-          sourceVolume  = "rabbitmq_data"
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "rabbitmq"
-        }
-      }
-    },
-    {
-      name              = "notification"
-      image             = var.notification_image
-      cpu               = 100
-      memoryReservation = 64
-      essential         = true
-      portMappings      = [{ containerPort = 50054 }]
-      environment = [
-        { name = "RABBITMQ_URL", value = "amqp://manychurch_admin:rabbitmq.manychurch.local:5672/" }
-      ]
-      secrets = [
-        { name = "RABBITMQ_PASSWORD", valueFrom = "${var.secrets_arn}:rabbitmq_password::" }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "notification"
-        }
-      }
-    }
-  ])
-
-  volume {
-    name      = "rabbitmq_data"
-    host_path = "/var/lib/manychurch/rabbitmq_data"
   }
 }
 
@@ -664,161 +563,6 @@ resource "aws_ecs_task_definition" "auth_church_member" {
   ])
 }
 
-# --- 5. Course & Giving Service Task Definition ---
-resource "aws_ecs_task_definition" "course_giving" {
-  family                   = "manychurch-${var.environment}-course-giving"
-  network_mode             = "host"
-  requires_compatibilities = ["EC2"]
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name              = "course"
-      image             = var.course_image
-      cpu               = 100
-      memoryReservation = 256
-      essential         = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "course"
-        }
-      }
-    },
-    {
-      name              = "giving"
-      image             = var.giving_image
-      cpu               = 100
-      memoryReservation = 256
-      essential         = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "giving"
-        }
-      }
-    }
-  ])
-}
-
-# --- 6. Wallet & Support Service Task Definition ---
-resource "aws_ecs_task_definition" "wallet_support" {
-  family                   = "manychurch-${var.environment}-wallet-support"
-  network_mode             = "host"
-  requires_compatibilities = ["EC2"]
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name              = "wallet"
-      image             = var.wallet_image
-      cpu               = 100
-      memoryReservation = 256
-      essential         = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "wallet"
-        }
-      }
-    },
-    {
-      name              = "support"
-      image             = var.support_image
-      cpu               = 100
-      memoryReservation = 256
-      essential         = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "support"
-        }
-      }
-    }
-  ])
-}
-
-# --- 7. Admin & Prometheus Service Task Definition ---
-resource "aws_ecs_task_definition" "admin_prometheus" {
-  family                   = "manychurch-${var.environment}-admin-prometheus"
-  network_mode             = "host"
-  requires_compatibilities = ["EC2"]
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name              = "admin"
-      image             = var.admin_image
-      cpu               = 100
-      memoryReservation = 256
-      essential         = true
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "admin"
-        }
-      }
-    },
-    {
-      name              = "prometheus"
-      image             = var.prometheus_image
-      cpu               = 200
-      memoryReservation = 512
-      essential         = true
-      portMappings      = [{ containerPort = 9090 }]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "prometheus"
-        }
-      }
-    }
-  ])
-}
-
-# --- 8. Grafana Service Task Definition ---
-resource "aws_ecs_task_definition" "grafana" {
-  family                   = "manychurch-${var.environment}-grafana"
-  network_mode             = "host"
-  requires_compatibilities = ["EC2"]
-  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([
-    {
-      name              = "grafana"
-      image             = var.grafana_image
-      cpu               = 200
-      memoryReservation = 512
-      essential         = true
-      portMappings      = [{ containerPort = 3000 }]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "grafana"
-        }
-      }
-    }
-  ])
-}
-
 # --- ECS Service Definitions ---
 
 resource "aws_ecs_service" "proxy_gateway" {
@@ -856,26 +600,6 @@ resource "aws_ecs_service" "postgres" {
   }
 }
 
-resource "aws_ecs_service" "rabbitmq" {
-  name            = "manychurch-rabbitmq"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.rabbitmq_notification.arn
-  desired_count   = 1
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 2"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-  service_registries {
-    registry_arn   = aws_service_discovery_service.rabbitmq.arn
-    container_name = "rabbitmq"
-    container_port = 5672
-  }
-}
-
 resource "aws_ecs_service" "auth" {
   name            = "manychurch-auth"
   cluster         = aws_ecs_cluster.main.id
@@ -883,7 +607,7 @@ resource "aws_ecs_service" "auth" {
   desired_count   = 1
   placement_constraints {
     type       = "memberOf"
-    expression = "attribute:host_index == 3"
+    expression = "attribute:host_index == 2"
   }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
@@ -903,7 +627,7 @@ resource "aws_ecs_service" "church" {
   desired_count   = 1
   placement_constraints {
     type       = "memberOf"
-    expression = "attribute:host_index == 3"
+    expression = "attribute:host_index == 2"
   }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
@@ -923,7 +647,7 @@ resource "aws_ecs_service" "member" {
   desired_count   = 1
   placement_constraints {
     type       = "memberOf"
-    expression = "attribute:host_index == 3"
+    expression = "attribute:host_index == 2"
   }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
@@ -933,86 +657,5 @@ resource "aws_ecs_service" "member" {
     registry_arn   = aws_service_discovery_service.member.arn
     container_name = "member"
     container_port = 50053
-  }
-}
-
-resource "aws_ecs_service" "notification" {
-  name            = "manychurch-notification"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.rabbitmq_notification.arn
-  desired_count   = 1
-  # (Note: we run rabbitmq on host 2, and notification service replica on host 4)
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 4"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-  service_registries {
-    registry_arn   = aws_service_discovery_service.notification.arn
-    container_name = "notification"
-    container_port = 50054
-  }
-}
-
-resource "aws_ecs_service" "course_giving" {
-  name            = "manychurch-course-giving"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.course_giving.arn
-  desired_count   = 1
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 5"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-}
-
-resource "aws_ecs_service" "wallet_support" {
-  name            = "manychurch-wallet-support"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.wallet_support.arn
-  desired_count   = 1
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 6"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-}
-
-resource "aws_ecs_service" "admin_prometheus" {
-  name            = "manychurch-admin-prometheus"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.admin_prometheus.arn
-  desired_count   = 1
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 7"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-}
-
-resource "aws_ecs_service" "grafana" {
-  name            = "manychurch-grafana"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.grafana.arn
-  desired_count   = 1
-  placement_constraints {
-    type       = "memberOf"
-    expression = "attribute:host_index == 7"
-  }
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
   }
 }

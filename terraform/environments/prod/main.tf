@@ -51,9 +51,7 @@ output "ecs_service_core_name" {
   value = module.prod_ecs.ecs_service_core_name
 }
 
-output "ecs_service_aux_name" {
-  value = module.prod_ecs.ecs_service_aux_name
-}
+
 
 output "ecs_service_name" {
   value = module.prod_ecs.ecs_service_name

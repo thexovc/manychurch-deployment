@@ -8,10 +8,7 @@ output "ecs_service_core_name" {
   value       = aws_ecs_service.proxy_gateway.name
 }
 
-output "ecs_service_aux_name" {
-  description = "The name of the Auxiliary ECS Service"
-  value       = aws_ecs_service.course_giving.name
-}
+
 
 output "ecs_service_name" {
   description = "The name of the Core ECS Service (legacy)"
