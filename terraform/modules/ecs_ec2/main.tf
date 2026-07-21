@@ -207,8 +207,8 @@ resource "aws_ecs_cluster" "main" {
 }
 
 resource "aws_key_pair" "deployer" {
-  key_name   = "manychurch-${var.environment}-key"
-  public_key = var.ssh_public_key
+  key_name_prefix = "manychurch-${var.environment}-key-"
+  public_key      = var.ssh_public_key
 }
 
 # EC2 Instances serving as our ECS Host Nodes (scaled to 8 instances for t3.micro cost optimization)
