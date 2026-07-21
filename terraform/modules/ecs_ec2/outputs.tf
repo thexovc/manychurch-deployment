@@ -18,7 +18,3 @@ output "ecs_service_name" {
   value       = aws_ecs_service.proxy_gateway.name
 }
 
-output "public_ip" {
-  description = "The public Elastic IP of the ECS EC2 host"
-  value       = aws_eip.host_eip.public_ip
-}

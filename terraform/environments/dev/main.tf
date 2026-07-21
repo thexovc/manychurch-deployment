@@ -22,6 +22,7 @@ provider "aws" {
 module "dev_ecs" {
   source             = "../../modules/ecs_ec2"
   environment        = "dev"
+  aws_region         = var.aws_region
   instance_type      = "t3.micro" # Using Free Tier instance with swap memory
   ssh_public_key     = var.ssh_public_key
   secrets_arn        = var.secrets_arn
@@ -40,10 +41,7 @@ module "dev_ecs" {
   admin_image        = var.admin_image
 }
 
-output "dev_server_public_ip" {
-  description = "The public IP of the Dev ECS EC2 server"
-  value       = module.dev_ecs.public_ip
-}
+
 
 output "ecs_cluster_name" {
   value = module.dev_ecs.ecs_cluster_name

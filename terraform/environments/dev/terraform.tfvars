@@ -1,5 +1,5 @@
-aws_region         = "us-east-1"
-ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPyour_placeholder_ssh_public_key manychurch-dev"
+aws_region         = "af-south-1"
+ssh_public_key     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG1r0oWf5A3qYfG+8J9xLwXp/2k2tY4vC/u8lKjZ+f6e manychurch-dev"
 secrets_arn        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:manychurch/dev/config-abcde"
 nginx_image        = "123456789012.dkr.ecr.us-east-1.amazonaws.com/manychurch-proxy:dev"
 gateway_image      = "123456789012.dkr.ecr.us-east-1.amazonaws.com/manychurch-gateway:dev"

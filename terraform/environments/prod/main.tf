@@ -22,7 +22,8 @@ provider "aws" {
 module "prod_ecs" {
   source             = "../../modules/ecs_ec2"
   environment        = "prod"
-  instance_type      = "t3.micro" # Downgraded to micro for cost optimization with 8 instances
+  aws_region         = var.aws_region
+  instance_type      = "t3.small"
   ssh_public_key     = var.ssh_public_key
   secrets_arn        = var.secrets_arn
   vpc_cidr           = "10.1.0.0/16"
@@ -40,10 +41,7 @@ module "prod_ecs" {
   admin_image        = var.admin_image
 }
 
-output "prod_server_public_ip" {
-  description = "The public IP of the Prod ECS EC2 server"
-  value       = module.prod_ecs.public_ip
-}
+
 
 output "ecs_cluster_name" {
   value = module.prod_ecs.ecs_cluster_name

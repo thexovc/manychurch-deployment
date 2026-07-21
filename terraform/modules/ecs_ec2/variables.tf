@@ -3,6 +3,11 @@ variable "environment" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "The AWS region"
+  type        = string
+}
+
 variable "vpc_cidr" {
   description = "VPC network IP range"
   type        = string
@@ -29,7 +34,7 @@ variable "ssh_public_key" {
 variable "availability_zone" {
   description = "Availability zone for network subnet"
   type        = string
-  default     = "us-east-1a"
+  default     = "af-south-1a"
 }
 
 variable "secrets_arn" {

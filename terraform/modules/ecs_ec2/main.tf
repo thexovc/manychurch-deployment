@@ -212,42 +212,92 @@ resource "aws_key_pair" "deployer" {
 }
 
 # EC2 Instances serving as our ECS Host Nodes (scaled to 8 instances for t3.micro cost optimization)
-resource "aws_instance" "ecs_host" {
-  count                  = 8
-  ami                    = data.aws_ami.ecs.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.ecs_host.id]
-  key_name               = aws_key_pair.deployer.key_name
-  iam_instance_profile   = aws_iam_instance_profile.ecs_instance_profile.name
+# ECS Capacity Provider and Auto Scaling Group
+resource "aws_launch_template" "ecs_host" {
+  name_prefix   = "manychurch-${var.environment}-ecs-host-"
+  image_id      = data.aws_ami.ecs.id
+  instance_type = var.instance_type
+  key_name      = aws_key_pair.deployer.key_name
 
-  root_block_device {
-    volume_size           = 30 # GP3 30GB standard size
-    volume_type           = "gp3"
-    delete_on_termination = true
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ecs_instance_profile.name
   }
 
-  user_data = templatefile("${path.module}/templates/user_data.sh", {
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.ecs_host.id]
+    subnet_id                   = aws_subnet.public.id
+  }
+
+  user_data = base64encode(templatefile("${path.module}/templates/user_data.sh", {
     cluster_name  = aws_ecs_cluster.main.name
-    instance_role = count.index == 0 ? "proxy" : "worker"
-    host_index    = count.index
-  })
+    instance_role = "worker"
+    host_index    = 0
+  }))
 
-  tags = {
-    Name        = "manychurch-${var.environment}-ecs-host-${count.index}"
-    Environment = var.environment
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 30
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-# Elastic IP allocation for host (associated with host 0 running Nginx proxy)
-resource "aws_eip" "host_eip" {
-  domain = "vpc"
+resource "aws_autoscaling_group" "ecs_asg" {
+  name                  = "manychurch-${var.environment}-ecs-asg"
+  vpc_zone_identifier   = [aws_subnet.public.id]
+  min_size              = 4
+  max_size              = 4
+  desired_capacity      = 4
+  protect_from_scale_in = false
+
+  launch_template {
+    id      = aws_launch_template.ecs_host.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "manychurch-${var.environment}-ecs-host"
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "Environment"
+    value               = var.environment
+    propagate_at_launch = true
+  }
+  tag {
+    key                 = "AmazonECSManaged"
+    value               = ""
+    propagate_at_launch = true
+  }
 }
 
-resource "aws_eip_association" "host_eip_assoc" {
-  instance_id   = aws_instance.ecs_host[0].id
-  allocation_id = aws_eip.host_eip.id
+resource "aws_ecs_capacity_provider" "ecs_cp" {
+  name = "manychurch-${var.environment}-cp"
+
+  auto_scaling_group_provider {
+    auto_scaling_group_arn         = aws_autoscaling_group.ecs_asg.arn
+    managed_termination_protection = "DISABLED"
+
+    managed_scaling {
+      status          = "ENABLED"
+      target_capacity = 100
+    }
+  }
 }
+
+resource "aws_ecs_cluster_capacity_providers" "ecs_ccp" {
+  cluster_name       = aws_ecs_cluster.main.name
+  capacity_providers = [aws_ecs_capacity_provider.ecs_cp.name]
+}
+
 
 # CloudWatch Logs Group for Application Containers
 resource "aws_cloudwatch_log_group" "app_logs" {
@@ -255,67 +305,101 @@ resource "aws_cloudwatch_log_group" "app_logs" {
   retention_in_days = 7
 }
 
-# --- Route 53 Private Hosted Zone & Records for DNS-based Service Discovery ---
-# The zone is created as a managed resource. The previous Cloud Map namespace
-# (which had auto-created a conflicting zone) has been destroyed, so this is safe.
-resource "aws_route53_zone" "private" {
-  name = "manychurch.local"
-  vpc {
-    vpc_id = aws_vpc.main.id
+# --- Service Discovery ---
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name        = "manychurch.local"
+  description = "manychurch.local Service Discovery Namespace"
+  vpc         = aws_vpc.main.id
+}
+
+resource "aws_service_discovery_service" "postgres" {
+  name = "postgres"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
   }
-
-  tags = {
-    Name        = "manychurch-${var.environment}-private-zone"
-    Environment = var.environment
+  health_check_custom_config {
+    failure_threshold = 1
   }
 }
 
-resource "aws_route53_record" "postgres" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "postgres.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[1].private_ip]
+resource "aws_service_discovery_service" "rabbitmq" {
+  name = "rabbitmq"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
-resource "aws_route53_record" "rabbitmq" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "rabbitmq.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[2].private_ip]
+resource "aws_service_discovery_service" "auth" {
+  name = "auth"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
-resource "aws_route53_record" "auth" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "auth.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[3].private_ip]
+resource "aws_service_discovery_service" "church" {
+  name = "church"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
-resource "aws_route53_record" "church" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "church.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[3].private_ip]
+resource "aws_service_discovery_service" "member" {
+  name = "member"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
-resource "aws_route53_record" "member" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "member.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[3].private_ip]
-}
-
-resource "aws_route53_record" "notification" {
-  zone_id = aws_route53_zone.private.zone_id
-  name    = "notification.manychurch.local"
-  type    = "A"
-  ttl     = 10
-  records = [aws_instance.ecs_host[4].private_ip]
+resource "aws_service_discovery_service" "notification" {
+  name = "notification"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 # --- 1. Proxy & Gateway Service Task Definition ---
@@ -328,11 +412,11 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
 
   container_definitions = jsonencode([
     {
-      name      = "nginx"
-      image     = var.nginx_image
-      cpu       = 100
+      name              = "nginx"
+      image             = var.nginx_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
+      essential         = true
       portMappings = [
         { containerPort = 80 },
         { containerPort = 443 }
@@ -341,17 +425,17 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "nginx"
         }
       }
     },
     {
-      name      = "gateway"
-      image     = var.gateway_image
-      cpu       = 100
+      name              = "gateway"
+      image             = var.gateway_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
+      essential         = true
       portMappings = [
         { containerPort = 8080 }
       ]
@@ -366,7 +450,7 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "gateway"
         }
       }
@@ -384,11 +468,11 @@ resource "aws_ecs_task_definition" "postgres" {
 
   container_definitions = jsonencode([
     {
-      name      = "postgres"
-      image     = var.postgres_image
-      cpu       = 200
+      name              = "postgres"
+      image             = var.postgres_image
+      cpu               = 200
       memoryReservation = 256
-      essential = true
+      essential         = true
       portMappings = [
         { containerPort = 5432 }
       ]
@@ -409,7 +493,7 @@ resource "aws_ecs_task_definition" "postgres" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "postgres"
         }
       }
@@ -432,11 +516,11 @@ resource "aws_ecs_task_definition" "rabbitmq_notification" {
 
   container_definitions = jsonencode([
     {
-      name      = "rabbitmq"
-      image     = var.rabbitmq_image
-      cpu       = 150
+      name              = "rabbitmq"
+      image             = var.rabbitmq_image
+      cpu               = 150
       memoryReservation = 192
-      essential = true
+      essential         = true
       portMappings = [
         { containerPort = 5672 },
         { containerPort = 15672 }
@@ -457,18 +541,18 @@ resource "aws_ecs_task_definition" "rabbitmq_notification" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "rabbitmq"
         }
       }
     },
     {
-      name      = "notification"
-      image     = var.notification_image
-      cpu       = 100
+      name              = "notification"
+      image             = var.notification_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
-      portMappings = [{ containerPort = 50054 }]
+      essential         = true
+      portMappings      = [{ containerPort = 50054 }]
       environment = [
         { name = "RABBITMQ_URL", value = "amqp://manychurch_admin:rabbitmq.manychurch.local:5672/" }
       ]
@@ -479,7 +563,7 @@ resource "aws_ecs_task_definition" "rabbitmq_notification" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "notification"
         }
       }
@@ -502,12 +586,12 @@ resource "aws_ecs_task_definition" "auth_church_member" {
 
   container_definitions = jsonencode([
     {
-      name      = "auth"
-      image     = var.auth_image
-      cpu       = 100
+      name              = "auth"
+      image             = var.auth_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
-      portMappings = [{ containerPort = 50051 }]
+      essential         = true
+      portMappings      = [{ containerPort = 50051 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
@@ -522,18 +606,18 @@ resource "aws_ecs_task_definition" "auth_church_member" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "auth"
         }
       }
     },
     {
-      name      = "church"
-      image     = var.church_image
-      cpu       = 100
+      name              = "church"
+      image             = var.church_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
-      portMappings = [{ containerPort = 50052 }]
+      essential         = true
+      portMappings      = [{ containerPort = 50052 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
@@ -547,18 +631,18 @@ resource "aws_ecs_task_definition" "auth_church_member" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "church"
         }
       }
     },
     {
-      name      = "member"
-      image     = var.member_image
-      cpu       = 100
+      name              = "member"
+      image             = var.member_image
+      cpu               = 100
       memoryReservation = 64
-      essential = true
-      portMappings = [{ containerPort = 50053 }]
+      essential         = true
+      portMappings      = [{ containerPort = 50053 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
@@ -572,7 +656,7 @@ resource "aws_ecs_task_definition" "auth_church_member" {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "member"
         }
       }
@@ -590,31 +674,31 @@ resource "aws_ecs_task_definition" "course_giving" {
 
   container_definitions = jsonencode([
     {
-      name      = "course"
-      image     = var.course_image
-      cpu       = 100
+      name              = "course"
+      image             = var.course_image
+      cpu               = 100
       memoryReservation = 256
-      essential = true
+      essential         = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "course"
         }
       }
     },
     {
-      name      = "giving"
-      image     = var.giving_image
-      cpu       = 100
+      name              = "giving"
+      image             = var.giving_image
+      cpu               = 100
       memoryReservation = 256
-      essential = true
+      essential         = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "giving"
         }
       }
@@ -632,31 +716,31 @@ resource "aws_ecs_task_definition" "wallet_support" {
 
   container_definitions = jsonencode([
     {
-      name      = "wallet"
-      image     = var.wallet_image
-      cpu       = 100
+      name              = "wallet"
+      image             = var.wallet_image
+      cpu               = 100
       memoryReservation = 256
-      essential = true
+      essential         = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "wallet"
         }
       }
     },
     {
-      name      = "support"
-      image     = var.support_image
-      cpu       = 100
+      name              = "support"
+      image             = var.support_image
+      cpu               = 100
       memoryReservation = 256
-      essential = true
+      essential         = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "support"
         }
       }
@@ -674,32 +758,32 @@ resource "aws_ecs_task_definition" "admin_prometheus" {
 
   container_definitions = jsonencode([
     {
-      name      = "admin"
-      image     = var.admin_image
-      cpu       = 100
+      name              = "admin"
+      image             = var.admin_image
+      cpu               = 100
       memoryReservation = 256
-      essential = true
+      essential         = true
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "admin"
         }
       }
     },
     {
-      name      = "prometheus"
-      image     = var.prometheus_image
-      cpu       = 200
+      name              = "prometheus"
+      image             = var.prometheus_image
+      cpu               = 200
       memoryReservation = 512
-      essential = true
-      portMappings = [{ containerPort = 9090 }]
+      essential         = true
+      portMappings      = [{ containerPort = 9090 }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "prometheus"
         }
       }
@@ -717,17 +801,17 @@ resource "aws_ecs_task_definition" "grafana" {
 
   container_definitions = jsonencode([
     {
-      name      = "grafana"
-      image     = var.grafana_image
-      cpu       = 200
+      name              = "grafana"
+      image             = var.grafana_image
+      cpu               = 200
       memoryReservation = 512
-      essential = true
-      portMappings = [{ containerPort = 3000 }]
+      essential         = true
+      portMappings      = [{ containerPort = 3000 }]
       logConfiguration = {
         logDriver = "awslogs"
         options = {
           "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
-          "awslogs-region"        = "us-east-1"
+          "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "grafana"
         }
       }
@@ -742,12 +826,13 @@ resource "aws_ecs_service" "proxy_gateway" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.proxy_gateway.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin proxy_gateway to run on the EC2 instance with role=proxy (ecs_host[0])
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:role == proxy"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
   }
 }
 
@@ -756,12 +841,18 @@ resource "aws_ecs_service" "postgres" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.postgres.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin postgres to run on the EC2 instance ecs_host[1]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 1"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.postgres.arn
+    container_name = "postgres"
+    container_port = 5432
   }
 }
 
@@ -770,12 +861,18 @@ resource "aws_ecs_service" "rabbitmq" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.rabbitmq_notification.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin rabbitmq_notification to run on the EC2 instance ecs_host[2]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 2"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.rabbitmq.arn
+    container_name = "rabbitmq"
+    container_port = 5672
   }
 }
 
@@ -784,12 +881,18 @@ resource "aws_ecs_service" "auth" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 3"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.auth.arn
+    container_name = "auth"
+    container_port = 50051
   }
 }
 
@@ -798,12 +901,18 @@ resource "aws_ecs_service" "church" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 3"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.church.arn
+    container_name = "church"
+    container_port = 50052
   }
 }
 
@@ -812,12 +921,18 @@ resource "aws_ecs_service" "member" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin auth_church_member to run on the EC2 instance ecs_host[3]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 3"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.member.arn
+    container_name = "member"
+    container_port = 50053
   }
 }
 
@@ -826,13 +941,19 @@ resource "aws_ecs_service" "notification" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.rabbitmq_notification.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin rabbitmq_notification to run on the EC2 instance ecs_host[4]
   # (Note: we run rabbitmq on host 2, and notification service replica on host 4)
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 4"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
+  }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.notification.arn
+    container_name = "notification"
+    container_port = 50054
   }
 }
 
@@ -841,12 +962,13 @@ resource "aws_ecs_service" "course_giving" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.course_giving.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin course_giving to run on the EC2 instance ecs_host[5]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 5"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
   }
 }
 
@@ -855,12 +977,13 @@ resource "aws_ecs_service" "wallet_support" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.wallet_support.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin wallet_support to run on the EC2 instance ecs_host[6]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 6"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
   }
 }
 
@@ -869,12 +992,13 @@ resource "aws_ecs_service" "admin_prometheus" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.admin_prometheus.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin admin_prometheus to run on the EC2 instance ecs_host[7]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 7"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
   }
 }
 
@@ -883,11 +1007,12 @@ resource "aws_ecs_service" "grafana" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.grafana.arn
   desired_count   = 1
-  launch_type     = "EC2"
-
-  # Pin grafana to run on the EC2 instance ecs_host[7]
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:host_index == 7"
+  }
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
+    weight            = 100
   }
 }
