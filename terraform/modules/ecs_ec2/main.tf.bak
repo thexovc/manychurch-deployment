@@ -570,6 +570,10 @@ resource "aws_ecs_service" "proxy_gateway" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.proxy_gateway.arn
   desired_count   = 1
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:role == proxy"
+  }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
     weight            = 100
@@ -581,6 +585,10 @@ resource "aws_ecs_service" "postgres" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.postgres.arn
   desired_count   = 1
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 1"
+  }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
     weight            = 100
@@ -597,6 +605,10 @@ resource "aws_ecs_service" "auth" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 2"
+  }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
     weight            = 100
@@ -613,6 +625,10 @@ resource "aws_ecs_service" "church" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 2"
+  }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
     weight            = 100
@@ -629,6 +645,10 @@ resource "aws_ecs_service" "member" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
+  placement_constraints {
+    type       = "memberOf"
+    expression = "attribute:host_index == 2"
+  }
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
     weight            = 100

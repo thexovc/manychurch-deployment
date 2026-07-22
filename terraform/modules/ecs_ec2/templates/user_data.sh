@@ -12,5 +12,6 @@ fi
 echo "ECS_CLUSTER=${cluster_name}" >> /etc/ecs/ecs.config
 echo "ECS_INSTANCE_ATTRIBUTES={\"role\":\"${instance_role}\",\"host_index\":\"${host_index}\"}" >> /etc/ecs/ecs.config
 
-# Start ECS Agent
+# Start/Restart ECS Agent
 systemctl enable --now ecs
+systemctl restart ecs
