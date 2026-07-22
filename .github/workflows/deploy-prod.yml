@@ -1,9 +1,10 @@
 name: Deploy Prod
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+#   push:
+#     branches:
+#       - main
 
 permissions:
   contents: read
@@ -13,50 +14,53 @@ jobs:
     name: Deploy Prod ECS
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Disable Prod
+        run: echo "Prod workflow is temporarily disabled."
+        
+      # - name: Checkout Code
+      #   uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: us-east-1
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      # - name: Login to Amazon ECR
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
 
-      # Build and push custom Nginx Proxy to ECR
-      - name: Build & Push Proxy Image
-        run: |
-          REGISTRY=${{ steps.login-ecr.outputs.registry }}
-          PROXY_IMG="$REGISTRY/manychurch-proxy:latest"
-          docker build -t "$PROXY_IMG" ./nginx
-          docker push "$PROXY_IMG"
-          echo "PROXY_IMAGE_URI=$PROXY_IMG" >> $GITHUB_ENV
+      # # Build and push custom Nginx Proxy to ECR
+      # - name: Build & Push Proxy Image
+      #   run: |
+      #     REGISTRY=${{ steps.login-ecr.outputs.registry }}
+      #     PROXY_IMG="$REGISTRY/manychurch-proxy:latest"
+      #     docker build -t "$PROXY_IMG" ./nginx
+      #     docker push "$PROXY_IMG"
+      #     echo "PROXY_IMAGE_URI=$PROXY_IMG" >> $GITHUB_ENV
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.8.0"
+      # - name: Setup Terraform
+      #   uses: hashicorp/setup-terraform@v3
+      #   with:
+      #     terraform_version: "1.8.0"
 
-      # Execute Deployment using native Terraform and AWS ECS APIs
-      - name: Terraform Apply (ECS Deploy)
-        working-directory: terraform/environments/prod
-        run: |
-          terraform init
-          terraform apply -auto-approve -input=false \
-            -var="ssh_public_key=${{ secrets.PROD_SSH_PUBLIC_KEY }}" \
-            -var="secrets_arn=${{ secrets.PROD_SECRETS_ARN }}" \
-            -var="nginx_image=${{ env.PROXY_IMAGE_URI }}" \
-            -var="gateway_image=${{ steps.login-ecr.outputs.registry }}/manychurch-gateway:latest" \
-            -var="auth_image=${{ steps.login-ecr.outputs.registry }}/manychurch-auth:latest" \
-            -var="church_image=${{ steps.login-ecr.outputs.registry }}/manychurch-church:latest" \
-            -var="member_image=${{ steps.login-ecr.outputs.registry }}/manychurch-member:latest" \
-            -var="course_image=${{ steps.login-ecr.outputs.registry }}/manychurch-course:latest" \
-            -var="giving_image=${{ steps.login-ecr.outputs.registry }}/manychurch-giving:latest" \
-            -var="wallet_image=${{ steps.login-ecr.outputs.registry }}/manychurch-wallet:latest" \
-            -var="notification_image=${{ steps.login-ecr.outputs.registry }}/manychurch-notification:latest" \
-            -var="support_image=${{ steps.login-ecr.outputs.registry }}/manychurch-support:latest" \
-            -var="admin_image=${{ steps.login-ecr.outputs.registry }}/manychurch-admin:latest"
+      # # Execute Deployment using native Terraform and AWS ECS APIs
+      # - name: Terraform Apply (ECS Deploy)
+      #   working-directory: terraform/environments/prod
+      #   run: |
+      #     terraform init
+      #     terraform apply -auto-approve -input=false \
+      #       -var="ssh_public_key=${{ secrets.PROD_SSH_PUBLIC_KEY }}" \
+      #       -var="secrets_arn=${{ secrets.PROD_SECRETS_ARN }}" \
+      #       -var="nginx_image=${{ env.PROXY_IMAGE_URI }}" \
+      #       -var="gateway_image=${{ steps.login-ecr.outputs.registry }}/manychurch-gateway:latest" \
+      #       -var="auth_image=${{ steps.login-ecr.outputs.registry }}/manychurch-auth:latest" \
+      #       -var="church_image=${{ steps.login-ecr.outputs.registry }}/manychurch-church:latest" \
+      #       -var="member_image=${{ steps.login-ecr.outputs.registry }}/manychurch-member:latest" \
+      #       -var="course_image=${{ steps.login-ecr.outputs.registry }}/manychurch-course:latest" \
+      #       -var="giving_image=${{ steps.login-ecr.outputs.registry }}/manychurch-giving:latest" \
+      #       -var="wallet_image=${{ steps.login-ecr.outputs.registry }}/manychurch-wallet:latest" \
+      #       -var="notification_image=${{ steps.login-ecr.outputs.registry }}/manychurch-notification:latest" \
+      #       -var="support_image=${{ steps.login-ecr.outputs.registry }}/manychurch-support:latest" \
+      #       -var="admin_image=${{ steps.login-ecr.outputs.registry }}/manychurch-admin:latest"
