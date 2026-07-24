@@ -1,12 +1,8 @@
-# Query the official AWS ECS-Optimized Amazon Linux 2 AMI
-data "aws_ami" "ecs" {
-  most_recent = true
-  filter {
-    name   = "name"
-    values = ["amzn2-ami-ecs-hvm-*-x86_64-ebs"]
-  }
-  owners = ["amazon"]
+# Query the official AWS ECS-Optimized Amazon Linux 2 AMI via SSM parameter
+data "aws_ssm_parameter" "ecs_ami" {
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
 }
+
 
 # --- VPC & Networking Setup ---
 
@@ -132,6 +128,11 @@ resource "aws_iam_role_policy_attachment" "ecs_instance_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 }
 
+resource "aws_iam_role_policy_attachment" "ecs_instance_ssm_policy" {
+  role       = aws_iam_role.ecs_instance_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "ecs_instance_profile" {
   name = "manychurch-${var.environment}-ecs-instance-profile"
   role = aws_iam_role.ecs_instance_role.name
@@ -215,7 +216,7 @@ resource "aws_key_pair" "deployer" {
 # ECS Capacity Provider and Auto Scaling Group
 resource "aws_launch_template" "ecs_host" {
   name_prefix   = "manychurch-${var.environment}-ecs-host-"
-  image_id      = data.aws_ami.ecs.id
+  image_id      = data.aws_ssm_parameter.ecs_ami.value
   instance_type = var.instance_type
   key_name      = aws_key_pair.deployer.key_name
 
