@@ -413,8 +413,9 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
       environment = [
         { name = "ENVIRONMENT", value = var.environment },
         { name = "AUTH_SERVICE_ADDR", value = "auth.manychurch.local:50051" },
-        { name = "CHURCH_SERVICE_ADDR", value = "church.manychurch.local:50052" },
-        { name = "MEMBER_SERVICE_ADDR", value = "member.manychurch.local:50053" },
+        # church and member run in the same task as auth (same host), so they share the same host IP
+        { name = "CHURCH_SERVICE_ADDR", value = "auth.manychurch.local:50052" },
+        { name = "MEMBER_SERVICE_ADDR", value = "auth.manychurch.local:50053" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -609,34 +610,6 @@ resource "aws_ecs_service" "auth" {
   }
 }
 
-resource "aws_ecs_service" "church" {
-  name            = "manychurch-church"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.auth_church_member.arn
-  desired_count   = 1
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-  service_registries {
-    registry_arn   = aws_service_discovery_service.church.arn
-    container_name = "church"
-    container_port = 50052
-  }
-}
-
-resource "aws_ecs_service" "member" {
-  name            = "manychurch-member"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.auth_church_member.arn
-  desired_count   = 1
-  capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cp.name
-    weight            = 100
-  }
-  service_registries {
-    registry_arn   = aws_service_discovery_service.member.arn
-    container_name = "member"
-    container_port = 50053
-  }
-}
+# church and member containers run inside the auth_church_member task (same host).
+# The gateway reaches them via auth.manychurch.local on their respective ports (50052, 50053).
+# No separate ECS services needed - reduces ASG instance requirements from 5 to 3.
