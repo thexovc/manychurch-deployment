@@ -63,7 +63,7 @@ jobs:
 
       - name: Force ECS Service Deployment
         run: |
-          for svc in manychurch-postgres manychurch-auth manychurch-church manychurch-member manychurch-proxy-gateway; do
-            aws ecs update-service --cluster manychurch-dev-cluster --service $svc --force-new-deployment --region af-south-1 || true
+          for svc in manychurch-dev-postgres manychurch-dev-auth manychurch-dev-proxy-gateway; do
+            aws ecs update-service --cluster dev-ecs-cluster --service $svc --force-new-deployment --region af-south-1 || true
           done
 
