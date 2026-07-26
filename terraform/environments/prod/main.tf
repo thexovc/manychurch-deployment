@@ -7,16 +7,16 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "manychurch-terraform-state"
-    key            = "prod/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "manychurch-terraform-locks"
-  }
+  # backend "s3" {
+  #   bucket         = "manychurch-terraform-state"
+  #   key            = "prod/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "manychurch-terraform-locks"
+  # }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
 }
 
 # module "prod_ecs" {

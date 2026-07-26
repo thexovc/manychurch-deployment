@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region for Dev environment"
   type        = string
-  default     = "us-east-1"
+  default     = "af-south-1"
 }
 
 variable "ssh_public_key" {
