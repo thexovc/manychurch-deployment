@@ -158,6 +158,66 @@ resource "aws_service_discovery_service" "auth" {
   }
 }
 
+# --- EFS Storage ---
+resource "aws_security_group" "efs_sg" {
+  name        = "manychurch-dev-efs-sg"
+  description = "Security group for EFS"
+  vpc_id      = module.networking.vpc_id
+
+  ingress {
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_efs_file_system" "main" {
+  creation_token = "manychurch-dev-efs"
+  encrypted      = true
+  tags = {
+    Name = "manychurch-dev-efs"
+  }
+}
+
+resource "aws_efs_mount_target" "main" {
+  count           = length(module.networking.public_subnet_ids)
+  file_system_id  = aws_efs_file_system.main.id
+  subnet_id       = module.networking.public_subnet_ids[count.index]
+  security_groups = [aws_security_group.efs_sg.id]
+}
+
+resource "aws_efs_access_point" "postgres" {
+  file_system_id = aws_efs_file_system.main.id
+  root_directory {
+    path = "/postgres"
+    creation_info {
+      owner_gid   = 0
+      owner_uid   = 0
+      permissions = "0777"
+    }
+  }
+}
+
+resource "aws_efs_access_point" "certs" {
+  file_system_id = aws_efs_file_system.main.id
+  root_directory {
+    path = "/letsencrypt"
+    creation_info {
+      owner_gid   = 0
+      owner_uid   = 0
+      permissions = "0777"
+    }
+  }
+}
+
 # --- Task Definitions ---
 # Total CPU: 200, Total Memory: 128
 resource "aws_ecs_task_definition" "proxy_gateway" {
@@ -177,6 +237,12 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
       portMappings = [
         { containerPort = 80 },
         { containerPort = 443 }
+      ]
+      mountPoints = [
+        {
+          containerPath = "/etc/letsencrypt"
+          sourceVolume  = "certs"
+        }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -201,6 +267,12 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
         { name = "AUTH_SERVICE_ADDR", value = "auth.manychurch.local:50051" },
         { name = "CHURCH_SERVICE_ADDR", value = "auth.manychurch.local:50052" },
         { name = "MEMBER_SERVICE_ADDR", value = "auth.manychurch.local:50053" },
+        { name = "GIVING_GRPC_ADDR", value = "extra.manychurch.local:50055" },
+        { name = "WALLET_GRPC_ADDR", value = "extra.manychurch.local:50056" },
+        { name = "NOTIFICATION_GRPC_ADDR", value = "extra.manychurch.local:50057" },
+        { name = "MESSAGING_GRPC_ADDR", value = "extra.manychurch.local:50058" },
+        { name = "ADMIN_HTTP_ADDR", value = "extra.manychurch.local:8089" },
+        { name = "SUPPORT_HTTP_ADDR", value = "extra.manychurch.local:8088" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -212,6 +284,18 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
       }
     }
   ])
+
+  volume {
+    name = "certs"
+    efs_volume_configuration {
+      file_system_id          = aws_efs_file_system.main.id
+      transit_encryption      = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.certs.id
+        iam             = "DISABLED"
+      }
+    }
+  }
 }
 
 # Total CPU: 200, Total Memory: 256
@@ -257,8 +341,15 @@ resource "aws_ecs_task_definition" "postgres" {
   ])
 
   volume {
-    name      = "postgres_data"
-    host_path = "/var/lib/manychurch/postgres_data"
+    name = "postgres_data"
+    efs_volume_configuration {
+      file_system_id          = aws_efs_file_system.main.id
+      transit_encryption      = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.postgres.id
+        iam             = "DISABLED"
+      }
+    }
   }
 }
 
@@ -379,5 +470,195 @@ resource "aws_ecs_service" "auth" {
     registry_arn   = aws_service_discovery_service.auth.arn
     container_name = "auth"
     container_port = 50051
+  }
+}
+
+resource "aws_service_discovery_service" "extra" {
+  name = "extra"
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
+    routing_policy = "MULTIVALUE"
+  }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+}
+
+# Total CPU: 600, Total Memory: 384
+resource "aws_ecs_task_definition" "extra_services" {
+  family                   = "manychurch-dev-extra-services"
+  network_mode             = "host"
+  requires_compatibilities = ["EC2"]
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name              = "giving"
+      image             = var.giving_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 50055 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "giving"
+        }
+      }
+    },
+    {
+      name              = "wallet"
+      image             = var.wallet_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 50056 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "wallet"
+        }
+      }
+    },
+    {
+      name              = "notification"
+      image             = var.notification_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 50057 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "notification"
+        }
+      }
+    },
+    {
+      name              = "messaging"
+      image             = var.messaging_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 50058 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "messaging"
+        }
+      }
+    },
+    {
+      name              = "admin"
+      image             = var.admin_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 8089 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" },
+        { name = "JWT_SECRET", valueFrom = "${var.secrets_arn}:jwt_secret::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "admin"
+        }
+      }
+    },
+    {
+      name              = "support"
+      image             = var.support_image
+      cpu               = 100
+      memoryReservation = 64
+      essential         = true
+      portMappings      = [{ containerPort = 8088 }]
+      environment = [
+        { name = "DB_HOST", value = "postgres.manychurch.local" },
+        { name = "DB_PORT", value = "5432" },
+        { name = "DB_NAME", value = "manychurch" },
+        { name = "DB_USER", value = "postgres" }
+      ]
+      secrets = [
+        { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app_logs.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "support"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_service" "extra_services" {
+  name            = "manychurch-dev-extra-services"
+  cluster         = module.compute.ecs_cluster_id
+  task_definition = aws_ecs_task_definition.extra_services.arn
+  desired_count   = 1
+  service_registries {
+    registry_arn   = aws_service_discovery_service.extra.arn
+    container_name = "giving"
+    container_port = 50055
   }
 }

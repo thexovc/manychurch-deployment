@@ -54,16 +54,16 @@ jobs:
             -var="auth_image=${{ steps.login-ecr.outputs.registry }}/manychurch-auth:dev" \
             -var="church_image=${{ steps.login-ecr.outputs.registry }}/manychurch-church:dev" \
             -var="member_image=${{ steps.login-ecr.outputs.registry }}/manychurch-member:dev" \
-            -var="course_image=${{ steps.login-ecr.outputs.registry }}/manychurch-course:dev" \
             -var="giving_image=${{ steps.login-ecr.outputs.registry }}/manychurch-giving:dev" \
             -var="wallet_image=${{ steps.login-ecr.outputs.registry }}/manychurch-wallet:dev" \
             -var="notification_image=${{ steps.login-ecr.outputs.registry }}/manychurch-notification:dev" \
             -var="support_image=${{ steps.login-ecr.outputs.registry }}/manychurch-support:dev" \
-            -var="admin_image=${{ steps.login-ecr.outputs.registry }}/manychurch-admin:dev"
+            -var="admin_image=${{ steps.login-ecr.outputs.registry }}/manychurch-admin:dev" \
+            -var="messaging_image=${{ steps.login-ecr.outputs.registry }}/manychurch-messaging:dev"
 
       - name: Force ECS Service Deployment
         run: |
-          for svc in manychurch-dev-postgres manychurch-dev-auth manychurch-dev-proxy-gateway; do
+          for svc in manychurch-dev-postgres manychurch-dev-proxy-gateway manychurch-dev-auth manychurch-dev-extra-services; do
             aws ecs update-service --cluster dev-ecs-cluster --service $svc --force-new-deployment --region af-south-1 || true
           done
 
