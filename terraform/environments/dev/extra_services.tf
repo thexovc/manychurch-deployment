@@ -29,6 +29,7 @@ resource "aws_ecs_task_definition" "giving" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export GIVING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/giving"]
       portMappings      = [{ containerPort = 50055 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
@@ -83,6 +84,7 @@ resource "aws_ecs_task_definition" "wallet" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export WALLET_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/wallet"]
       portMappings      = [{ containerPort = 50056 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
@@ -137,6 +139,7 @@ resource "aws_ecs_task_definition" "notification" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export NOTIFICATION_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/notification"]
       portMappings      = [{ containerPort = 50057 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
@@ -191,6 +194,7 @@ resource "aws_ecs_task_definition" "messaging" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export MESSAGING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/messaging"]
       portMappings      = [{ containerPort = 50058 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
@@ -247,6 +251,7 @@ resource "aws_ecs_task_definition" "admin" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export ADMIN_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/admin"]
       portMappings      = [{ containerPort = 8089 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
@@ -304,6 +309,7 @@ resource "aws_ecs_task_definition" "support" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
+      entrypoint        = ["sh", "-c", "export SUPPORT_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/support"]
       portMappings      = [{ containerPort = 8088 }]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
