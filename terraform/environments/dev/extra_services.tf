@@ -5,10 +5,15 @@ resource "aws_service_discovery_service" "giving" {
   name = "giving"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "giving" {
@@ -42,7 +47,11 @@ resource "aws_ecs_service" "giving" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.giving.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.giving.arn, container_name = "giving", container_port = 50055 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.giving.arn
+    container_name = "giving"
+    container_port = 50055
+  }
 }
 
 # Wallet
@@ -50,10 +59,15 @@ resource "aws_service_discovery_service" "wallet" {
   name = "wallet"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "wallet" {
@@ -87,7 +101,11 @@ resource "aws_ecs_service" "wallet" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.wallet.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.wallet.arn, container_name = "wallet", container_port = 50056 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.wallet.arn
+    container_name = "wallet"
+    container_port = 50056
+  }
 }
 
 # Notification
@@ -95,10 +113,15 @@ resource "aws_service_discovery_service" "notification" {
   name = "notification"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "notification" {
@@ -132,7 +155,11 @@ resource "aws_ecs_service" "notification" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.notification.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.notification.arn, container_name = "notification", container_port = 50057 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.notification.arn
+    container_name = "notification"
+    container_port = 50057
+  }
 }
 
 # Messaging
@@ -140,10 +167,15 @@ resource "aws_service_discovery_service" "messaging" {
   name = "messaging"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "messaging" {
@@ -179,7 +211,11 @@ resource "aws_ecs_service" "messaging" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.messaging.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.messaging.arn, container_name = "messaging", container_port = 50058 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.messaging.arn
+    container_name = "messaging"
+    container_port = 50058
+  }
 }
 
 # Admin
@@ -187,10 +223,15 @@ resource "aws_service_discovery_service" "admin" {
   name = "admin"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "admin" {
@@ -227,7 +268,11 @@ resource "aws_ecs_service" "admin" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.admin.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.admin.arn, container_name = "admin", container_port = 8089 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.admin.arn
+    container_name = "admin"
+    container_port = 8089
+  }
 }
 
 # Support
@@ -235,10 +280,15 @@ resource "aws_service_discovery_service" "support" {
   name = "support"
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
-    dns_records { ttl = 10, type = "SRV" }
+    dns_records {
+      ttl  = 10
+      type = "SRV"
+    }
     routing_policy = "MULTIVALUE"
   }
-  health_check_custom_config { failure_threshold = 1 }
+  health_check_custom_config {
+    failure_threshold = 1
+  }
 }
 
 resource "aws_ecs_task_definition" "support" {
@@ -272,5 +322,9 @@ resource "aws_ecs_service" "support" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.support.arn
   desired_count   = 1
-  service_registries { registry_arn = aws_service_discovery_service.support.arn, container_name = "support", container_port = 8088 }
+  service_registries {
+    registry_arn   = aws_service_discovery_service.support.arn
+    container_name = "support"
+    container_port = 8088
+  }
 }

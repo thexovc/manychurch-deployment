@@ -467,3 +467,9 @@ resource "aws_ecs_service" "auth" {
   cluster         = module.compute.ecs_cluster_id
   task_definition = aws_ecs_task_definition.auth_church_member.arn
   desired_count   = 1
+  service_registries {
+    registry_arn   = aws_service_discovery_service.auth.arn
+    container_name = "auth"
+    container_port = 50051
+  }
+}
