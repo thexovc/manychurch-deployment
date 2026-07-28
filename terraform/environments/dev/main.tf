@@ -400,7 +400,8 @@ resource "aws_ecs_task_definition" "auth_church_member" {
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = "manychurch" },
-        { name = "DB_USER", value = "postgres" }
+        { name = "DB_USER", value = "postgres" },
+        { name = "MEMBER_GRPC_ADDR", value = "member.manychurch.local:50053" }
       ]
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
@@ -425,7 +426,8 @@ resource "aws_ecs_task_definition" "auth_church_member" {
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = "manychurch" },
-        { name = "DB_USER", value = "postgres" }
+        { name = "DB_USER", value = "postgres" },
+        { name = "WALLET_GRPC_ADDR", value = "wallet.manychurch.local:50056" }
       ]
       secrets = [
         { name = "DB_PASSWORD", valueFrom = "${var.secrets_arn}:db_password::" }
