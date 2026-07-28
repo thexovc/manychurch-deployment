@@ -75,7 +75,7 @@ Deployment is managed using **Terraform** to provision a single ECS cluster runn
 *   **Dev**: Configured in [terraform/environments/dev/](file:///Users/danielosariemen/Documents/Daniel-jobs/ManyChurch/manychurch-deployment/terraform/environments/dev)
 *   **Prod**: Configured in [terraform/environments/prod/](file:///Users/danielosariemen/Documents/Daniel-jobs/ManyChurch/manychurch-deployment/terraform/environments/prod)
 
-### Automated Deployments via GitHub Actions
+## Automated Deployments via GitHub Actions
 GitHub Actions automatically trigger deployment on pushes to target branches:
 *   Pushing to `dev` triggers the [deploy-dev.yml](file:///Users/danielosariemen/Documents/Daniel-jobs/ManyChurch/manychurch-deployment/.github/workflows/deploy-dev.yml) workflow.
 *   Pushing to `prod` triggers the [deploy-prod.yml](file:///Users/danielosariemen/Documents/Daniel-jobs/ManyChurch/manychurch-deployment/.github/workflows/deploy-prod.yml) workflow.
