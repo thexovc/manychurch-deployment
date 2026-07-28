@@ -134,7 +134,7 @@ resource "aws_service_discovery_service" "postgres" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -149,7 +149,7 @@ resource "aws_service_discovery_service" "auth" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -463,8 +463,6 @@ resource "aws_ecs_service" "postgres" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.postgres.arn
-    container_name = "postgres"
-    container_port = 5432
   }
 }
 
@@ -475,7 +473,5 @@ resource "aws_ecs_service" "auth" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.auth.arn
-    container_name = "auth"
-    container_port = 50051
   }
 }
