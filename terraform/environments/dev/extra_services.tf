@@ -7,7 +7,7 @@ resource "aws_service_discovery_service" "giving" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -58,9 +58,7 @@ resource "aws_ecs_service" "giving" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.giving.arn
-    container_name = "giving"
-    container_port = 50055
-  }
+          }
 }
 
 # Wallet
@@ -70,7 +68,7 @@ resource "aws_service_discovery_service" "wallet" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -128,9 +126,7 @@ resource "aws_ecs_service" "wallet" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.wallet.arn
-    container_name = "wallet"
-    container_port = 50056
-  }
+          }
 }
 
 # Notification
@@ -140,7 +136,7 @@ resource "aws_service_discovery_service" "notification" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -190,9 +186,7 @@ resource "aws_ecs_service" "notification" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.notification.arn
-    container_name = "notification"
-    container_port = 50057
-  }
+          }
 }
 
 # Messaging
@@ -202,7 +196,7 @@ resource "aws_service_discovery_service" "messaging" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -255,9 +249,7 @@ resource "aws_ecs_service" "messaging" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.messaging.arn
-    container_name = "messaging"
-    container_port = 50058
-  }
+          }
 }
 
 # Admin
@@ -267,7 +259,7 @@ resource "aws_service_discovery_service" "admin" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -320,9 +312,7 @@ resource "aws_ecs_service" "admin" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.admin.arn
-    container_name = "admin"
-    container_port = 8089
-  }
+          }
 }
 
 # Support
@@ -332,7 +322,7 @@ resource "aws_service_discovery_service" "support" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -382,7 +372,5 @@ resource "aws_ecs_service" "support" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.support.arn
-    container_name = "support"
-    container_port = 8088
-  }
+          }
 }

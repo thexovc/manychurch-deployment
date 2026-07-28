@@ -7,7 +7,7 @@ resource "aws_service_discovery_service" "redis" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -50,8 +50,6 @@ resource "aws_ecs_service" "redis" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.redis.arn
-    container_name = "redis"
-    container_port = 6379
   }
 }
 
@@ -62,7 +60,7 @@ resource "aws_service_discovery_service" "rabbitmq" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       ttl  = 10
-      type = "SRV"
+      type = "A"
     }
     routing_policy = "MULTIVALUE"
   }
@@ -112,7 +110,5 @@ resource "aws_ecs_service" "rabbitmq" {
   desired_count   = 1
   service_registries {
     registry_arn   = aws_service_discovery_service.rabbitmq.arn
-    container_name = "rabbitmq"
-    container_port = 5672
   }
 }
