@@ -29,7 +29,7 @@ resource "aws_ecs_task_definition" "giving" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export GIVING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/giving"]
+      entrypoint        = ["sh", "-c", "export GIVING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/giving; do echo 'giving crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 50055 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:9095/metrics || exit 1"]
@@ -92,7 +92,7 @@ resource "aws_ecs_task_definition" "wallet" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export WALLET_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/wallet"]
+      entrypoint        = ["sh", "-c", "export WALLET_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/wallet; do echo 'wallet crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 50056 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:9096/metrics || exit 1"]
@@ -162,7 +162,7 @@ resource "aws_ecs_task_definition" "notification" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export NOTIFICATION_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/notification"]
+      entrypoint        = ["sh", "-c", "export NOTIFICATION_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/notification; do echo 'notification crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 50057 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:9097/metrics || exit 1"]
@@ -224,7 +224,7 @@ resource "aws_ecs_task_definition" "messaging" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export MESSAGING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/messaging"]
+      entrypoint        = ["sh", "-c", "export MESSAGING_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/messaging; do echo 'messaging crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 50058 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:9098/metrics || exit 1"]
@@ -289,7 +289,7 @@ resource "aws_ecs_task_definition" "admin" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export ADMIN_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/admin"]
+      entrypoint        = ["sh", "-c", "export ADMIN_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/admin; do echo 'admin crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 8089 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:8089/health || exit 1"]
@@ -354,7 +354,7 @@ resource "aws_ecs_task_definition" "support" {
       cpu               = 100
       memoryReservation = 64
       essential         = true
-      entrypoint        = ["sh", "-c", "export SUPPORT_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && exec /bin/support"]
+      entrypoint        = ["sh", "-c", "export SUPPORT_DATABASE_URL=postgres://postgres:$DB_PASSWORD@postgres.manychurch.local:5432/manychurch?sslmode=disable && until /bin/support; do echo 'support crashed, retrying in 3s...'; sleep 3; done"]
       portMappings      = [{ containerPort = 8088 }]
       healthCheck = {
         command     = ["CMD-SHELL", "wget -qO- http://localhost:8088/health || exit 1"]

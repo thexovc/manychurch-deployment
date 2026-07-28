@@ -262,6 +262,7 @@ resource "aws_ecs_task_definition" "proxy_gateway" {
       portMappings = [
         { containerPort = 8080 }
       ]
+      entrypoint = ["sh", "-c", "until /bin/gateway; do echo 'Gateway crashed (waiting for dependencies), retrying in 3s...'; sleep 3; done"]
       environment = [
         { name = "ENVIRONMENT", value = "dev" },
         { name = "AUTH_SERVICE_ADDR", value = "auth.manychurch.local:50051" },
@@ -370,6 +371,7 @@ resource "aws_ecs_task_definition" "auth_church_member" {
       memoryReservation = 64
       essential         = true
       portMappings      = [{ containerPort = 50051 }]
+      entrypoint        = ["sh", "-c", "until /bin/auth; do echo 'Auth crashed (waiting for DB), retrying in 3s...'; sleep 3; done"]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
@@ -396,6 +398,7 @@ resource "aws_ecs_task_definition" "auth_church_member" {
       memoryReservation = 64
       essential         = true
       portMappings      = [{ containerPort = 50052 }]
+      entrypoint        = ["sh", "-c", "until /bin/church; do echo 'Church crashed (waiting for DB), retrying in 3s...'; sleep 3; done"]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
@@ -422,6 +425,7 @@ resource "aws_ecs_task_definition" "auth_church_member" {
       memoryReservation = 64
       essential         = true
       portMappings      = [{ containerPort = 50053 }]
+      entrypoint        = ["sh", "-c", "until /bin/member; do echo 'Member crashed (waiting for DB), retrying in 3s...'; sleep 3; done"]
       environment = [
         { name = "DB_HOST", value = "postgres.manychurch.local" },
         { name = "DB_PORT", value = "5432" },
